@@ -12,6 +12,7 @@ export interface ExportLibraryOptions {
   outputDir: string;
   doneFilePath: string;
   email: string;
+  includeCitations?: boolean;
 }
 
 function getTimestampedFolderName(): string {
@@ -75,7 +76,9 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
       );
 
       // Save Markdown
-      const result = renderConversation(threadData.conversation);
+      const result = renderConversation(threadData.conversation, {
+        includeCitations: options.includeCitations,
+      });
       await fs.writeFile(
         path.join(mdDir, `${result.suggestedFilename}.md`),
         result.markdown

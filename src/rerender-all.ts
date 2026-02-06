@@ -6,8 +6,13 @@ import path from "path";
 // Supports both:
 //   - New structure: ./exports/2026-02-06T22-35/json/ -> md/
 //   - Old structure: ./JSON/ (flat, outputs .md alongside .json)
+//
+// Options:
+//   OUTPUT_DIR - directory containing JSON files
+//   CITATIONS=1 - include source citations (default: no)
 
 const outputDir = process.env.OUTPUT_DIR || "./exports";
+const includeCitations = process.env.CITATIONS === "1";
 
 let jsonDir: string;
 let mdDir: string;
@@ -26,6 +31,7 @@ if (fs.existsSync(path.join(outputDir, "json"))) {
   console.error(`No JSON files found in: ${outputDir}`);
   console.error("Usage: OUTPUT_DIR=./exports/2026-02-06T22-35 npx ts-node src/rerender-all.ts");
   console.error("   or: OUTPUT_DIR=./JSON npx ts-node src/rerender-all.ts (for flat folders)");
+  console.error("   Add CITATIONS=1 to include source citations");
   process.exit(1);
 }
 
@@ -35,13 +41,13 @@ const files = fs
   .readdirSync(jsonDir)
   .filter((file) => file.endsWith(".json"));
 
-console.log(`Found ${files.length} JSON files to process (${flatMode ? 'flat' : 'nested'} mode)`);
+console.log(`Found ${files.length} JSON files to process (${flatMode ? 'flat' : 'nested'} mode, citations: ${includeCitations ? 'yes' : 'no'})`);
 
 for (const file of files) {
   const filePath = path.join(jsonDir, file);
   try {
     const conversation = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    const result = renderConversation(conversation);
+    const result = renderConversation(conversation, { includeCitations });
 
     const outputPath = path.join(mdDir, `${result.suggestedFilename}.md`);
     fs.writeFileSync(outputPath, result.markdown);

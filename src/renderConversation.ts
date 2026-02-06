@@ -5,15 +5,21 @@ import {
   VideoModeBlock,
 } from "./types/conversation";
 
+export interface RenderOptions {
+  includeCitations?: boolean;
+}
+
 export interface RenderResult {
   markdown: string;
   suggestedFilename: string;
 }
 
 export default function renderConversation(
-  conversation: ConversationResponse
+  conversation: ConversationResponse,
+  options: RenderOptions = {}
 ): RenderResult {
   const { entries } = conversation;
+  const includeCitations = options.includeCitations ?? false;
 
   if (entries.length === 0) {
     return { markdown: "", suggestedFilename: "untitled" };
@@ -79,12 +85,12 @@ Last updated: ${entries[entries.length - 1].updated_datetime}`;
     }
 
     if (answerBlock) {
-      let cleanedAnswer = cleanupAnswer(answerBlock.answer, entryIndex);
+      let cleanedAnswer = cleanupAnswer(answerBlock.answer, entryIndex, includeCitations);
       cleanedAnswer = bumpHeaders(cleanedAnswer);
       items.push(cleanedAnswer);
     }
 
-    if (sourcesBlock) {
+    if (includeCitations && sourcesBlock) {
       items.push(renderSources(sourcesBlock, entryIndex));
     }
 
@@ -123,12 +129,16 @@ function sanitizeFilename(name: string): string {
     .substring(0, 100);
 }
 
-function cleanupAnswer(answer: string, entryIndex: number): string {
-  return (
-    answer
-      .replace(/\[(.*?)\]\(pplx:\/\/.*?\)/g, "$1")
-      .replace(/\[(\d+)\]/g, (_, num) => ` [[#^${entryIndex + 1}-${num}]] `)
-  );
+function cleanupAnswer(answer: string, entryIndex: number, includeCitations: boolean): string {
+  let cleaned = answer.replace(/\[(.*?)\]\(pplx:\/\/.*?\)/g, "$1");
+
+  if (includeCitations) {
+    cleaned = cleaned.replace(/\[(\d+)\]/g, (_, num) => ` [[#^${entryIndex + 1}-${num}]] `);
+  } else {
+    cleaned = cleaned.replace(/\[(\d+)\]/g, '');
+  }
+
+  return cleaned;
 }
 
 function renderSources(sources: SourcesModeBlock, entryIndex: number): string {

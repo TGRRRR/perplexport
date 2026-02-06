@@ -17,6 +17,7 @@ program
     "done.json"
   )
   .option("-e, --email <email>", "Perplexity email")
+  .option("--citations", "Include source citations in markdown output", false)
   .parse();
 
 const options = program.opts();
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
     outputDir: options.output,
     doneFilePath: options.doneFile,
     email: email,
+    includeCitations: options.citations,
   });
 }
 
