@@ -8,8 +8,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn src/index.ts",
+    "start": "ts-node src/cli.ts",
+    "dev": "ts-node-dev --respawn src/cli.ts",
     "prepublishOnly": "npm run build",
     "postinstall": "echo 'Skipping chmod on Windows'",
     "package": "pkg ."
@@ -28,13 +28,15 @@
   "dependencies": {
     "commander": "^11.0.0",
     "puppeteer-core": "^21.1.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "turndown": "^7.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "pkg": "^5.8.1",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0",
-    "pkg": "^5.8.1"
+    "typescript": "^5.0.0"
   },
   "engines": {
     "node": ">=16.0.0"

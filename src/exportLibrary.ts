@@ -1,17 +1,18 @@
 import { promises as fs } from "fs";
 import path from "path";
-import puppeteer from "puppeteer-core";
-import { Browser } from "puppeteer-core";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { ConversationSaver } from "./ConversationSaver";
 import { getConversations } from "./listConversations";
 import { login } from "./login";
 import renderConversation from "./renderConversation";
 import { loadDoneFile, saveDoneFile, sleep, getChromePath } from "./utils";
 
+puppeteer.use(StealthPlugin());
+
 export interface ExportLibraryOptions {
   outputDir: string;
   doneFilePath: string;
-  email: string;
   includeCitations?: boolean;
 }
 
@@ -44,17 +45,18 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
     throw new Error("Google Chrome not found. Please install it or set PUPPETEER_EXECUTABLE_PATH.");
   }
 
-  const browser: Browser = await puppeteer.launch({
+  const browser = await puppeteer.launch({
     headless: false,
     executablePath: executablePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    defaultViewport: null
+    defaultViewport: null,
+    protocolTimeout: 300000, // 5 min timeout for long operations
   });
 
   try {
     const page = await browser.newPage();
 
-    await login(page, options.email);
+    await login(page);
     const conversations = await getConversations(page, doneFile);
 
     console.log(`Found ${conversations.length} new conversations to process`);
@@ -63,29 +65,50 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
     await conversationSaver.initialize();
 
     for (const conversation of conversations) {
-      console.log(`Processing conversation ${conversation.url}`);
+      let success = false;
+      let retries = 0;
+      const maxRetries = 3;
 
-      const threadData = await conversationSaver.loadThreadFromURL(
-        conversation.url
-      );
+      while (!success && retries < maxRetries) {
+        try {
+          console.log(`Processing conversation ${conversation.url}${retries > 0 ? ` (retry ${retries})` : ''}`);
 
-      // Save JSON
-      await fs.writeFile(
-        path.join(jsonDir, `${threadData.id}.json`),
-        JSON.stringify(threadData.conversation, null, 2)
-      );
+          const threadData = await conversationSaver.loadThreadFromURL(
+            conversation.url
+          );
 
-      // Save Markdown
-      const result = renderConversation(threadData.conversation, {
-        includeCitations: options.includeCitations,
-      });
-      await fs.writeFile(
-        path.join(mdDir, `${result.suggestedFilename}.md`),
-        result.markdown
-      );
+          // Save JSON
+          await fs.writeFile(
+            path.join(jsonDir, `${threadData.id}.json`),
+            JSON.stringify(threadData.conversation, null, 2)
+          );
 
-      doneFile.processedUrls.push(conversation.url);
-      await saveDoneFile(doneFile, options.doneFilePath);
+          // Save Markdown
+          const result = renderConversation(threadData.conversation, {
+            includeCitations: options.includeCitations,
+          });
+          await fs.writeFile(
+            path.join(mdDir, `${result.suggestedFilename}.md`),
+            result.markdown
+          );
+
+          doneFile.processedUrls.push(conversation.url);
+          await saveDoneFile(doneFile, options.doneFilePath);
+
+          success = true;
+        } catch (err) {
+          retries++;
+          console.error(`Error processing ${conversation.url}: ${err}`);
+          if (retries < maxRetries) {
+            console.log(`Waiting 5s before retry...`);
+            await sleep(5000);
+          }
+        }
+      }
+
+      if (!success) {
+        console.error(`Failed to process ${conversation.url} after ${maxRetries} retries, skipping.`);
+      }
 
       await sleep(2000);
     }
