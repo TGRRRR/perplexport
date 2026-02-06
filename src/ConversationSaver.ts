@@ -13,7 +13,7 @@ export class ConversationSaver {
     this.page = page;
   }
 
-  private resolve: (data: ThreadData) => void = (_) => {};
+  private resolve: (data: ThreadData) => void = (_) => { };
 
   async initialize(): Promise<void> {
     this.page.on("response", async (response) => {
@@ -21,8 +21,7 @@ export class ConversationSaver {
       if (
         response.request().method() === "GET" &&
         url.includes("/rest/thread/") &&
-        // TODO: might not be stable
-        url.includes("limit=100")
+        url.includes("/rest/thread/")
       ) {
         const threadId = url.split("/rest/thread/")[1].split("?")[0];
         if (threadId === "list_recent") {
@@ -52,9 +51,18 @@ export class ConversationSaver {
     const pagePromise = new Promise<ThreadData>((resolve) => {
       this.resolve = resolve;
     });
-    await this.page.goto(url);
-    const threadData = await pagePromise;
-    this.resolve = (_) => {};
-    return threadData;
+    const timeoutPromise = new Promise<ThreadData>((_, reject) => {
+      setTimeout(() => reject(new Error("Timeout waiting for thread data")), 30000);
+    });
+
+    try {
+      await this.page.goto(url);
+      const threadData = await Promise.race([pagePromise, timeoutPromise]);
+      this.resolve = (_) => { };
+      return threadData;
+    } catch (e) {
+      this.resolve = (_) => { };
+      throw e;
+    }
   }
 }

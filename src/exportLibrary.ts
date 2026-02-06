@@ -70,6 +70,7 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
   } catch (error) {
     console.error("An error occurred:", error);
   } finally {
-    await browser.close();
+    // await browser.close();
+    console.log("Browser left open for debugging.");
   }
 }

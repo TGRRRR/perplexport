@@ -4,7 +4,12 @@ export async function login(page: Page, email: string): Promise<void> {
   console.log("Navigating to Perplexity...");
   await page.goto("https://www.perplexity.ai/");
 
-  await page.click("button::-p-text('Accept All Cookies')");
+  try {
+    await page.waitForSelector("button::-p-text('Accept All Cookies')", { timeout: 3000 });
+    await page.click("button::-p-text('Accept All Cookies')");
+  } catch (e) {
+    console.log("No cookie banner found, continuing...");
+  }
 
   // Wait for email input and enter credentials
   await page.waitForSelector('input[type="email"]');
