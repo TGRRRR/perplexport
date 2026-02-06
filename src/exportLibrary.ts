@@ -1,12 +1,12 @@
 import { promises as fs } from "fs";
-import puppeteer from "puppeteer-extra";
-import { Browser } from "puppeteer";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import path from "path";
+import puppeteer from "puppeteer-core";
+import { Browser } from "puppeteer-core";
 import { ConversationSaver } from "./ConversationSaver";
 import { getConversations } from "./listConversations";
 import { login } from "./login";
 import renderConversation from "./renderConversation";
-import { loadDoneFile, saveDoneFile, sleep } from "./utils";
+import { loadDoneFile, saveDoneFile, sleep, getChromePath } from "./utils";
 
 export interface ExportLibraryOptions {
   outputDir: string;
@@ -14,11 +14,23 @@ export interface ExportLibraryOptions {
   email: string;
 }
 
-export default async function exportLibrary(options: ExportLibraryOptions) {
-  puppeteer.use(StealthPlugin());
+function getTimestampedFolderName(): string {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}-${pad(now.getMinutes())}`;
+}
 
-  // Create output directory if it doesn't exist
-  await fs.mkdir(options.outputDir, { recursive: true });
+export default async function exportLibrary(options: ExportLibraryOptions) {
+  // Create timestamped output directory with json/md subdirs
+  const timestamp = getTimestampedFolderName();
+  const exportDir = path.join(options.outputDir, timestamp);
+  const jsonDir = path.join(exportDir, "json");
+  const mdDir = path.join(exportDir, "md");
+
+  await fs.mkdir(jsonDir, { recursive: true });
+  await fs.mkdir(mdDir, { recursive: true });
+
+  console.log(`Export folder: ${exportDir}`);
 
   // Load done file
   const doneFile = await loadDoneFile(options.doneFilePath);
@@ -26,9 +38,16 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
     `Loaded ${doneFile.processedUrls.length} processed URLs from done file`
   );
 
+  const executablePath = getChromePath();
+  if (!executablePath) {
+    throw new Error("Google Chrome not found. Please install it or set PUPPETEER_EXECUTABLE_PATH.");
+  }
+
   const browser: Browser = await puppeteer.launch({
-    // Authentication is interactive.
     headless: false,
+    executablePath: executablePath,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: null
   });
 
   try {
@@ -49,21 +68,23 @@ export default async function exportLibrary(options: ExportLibraryOptions) {
         conversation.url
       );
 
-      // place the thread data in the output directory
+      // Save JSON
       await fs.writeFile(
-        `${options.outputDir}/${threadData.id}.json`,
+        path.join(jsonDir, `${threadData.id}.json`),
         JSON.stringify(threadData.conversation, null, 2)
       );
 
-      // render conversation to markdown and save
-      const markdown = renderConversation(threadData.conversation);
-      await fs.writeFile(`${options.outputDir}/${threadData.id}.md`, markdown);
+      // Save Markdown
+      const result = renderConversation(threadData.conversation);
+      await fs.writeFile(
+        path.join(mdDir, `${result.suggestedFilename}.md`),
+        result.markdown
+      );
 
       doneFile.processedUrls.push(conversation.url);
-      // Save after each conversation in case of interruption
       await saveDoneFile(doneFile, options.doneFilePath);
 
-      await sleep(2000); // don't do it too fast
+      await sleep(2000);
     }
 
     console.log("Done");

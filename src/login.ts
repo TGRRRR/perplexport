@@ -1,37 +1,43 @@
-import { Page } from "puppeteer";
+import { Page } from "puppeteer-core";
 
 export async function login(page: Page, email: string): Promise<void> {
   console.log("Navigating to Perplexity...");
   await page.goto("https://www.perplexity.ai/");
 
   try {
-    await page.waitForSelector("button::-p-text('Accept All Cookies')", { timeout: 3000 });
-    await page.click("button::-p-text('Accept All Cookies')");
+    const button = await page.waitForSelector("button::-p-text('Accept All Cookies')", { timeout: 3000 });
+    if (button) {
+      await button.click();
+    }
   } catch (e) {
-    console.log("No cookie banner found, continuing...");
+    // Ignore if not found
   }
 
-  // Wait for email input and enter credentials
-  await page.waitForSelector('input[type="email"]');
-  await page.type('input[type="email"]', email);
+  const emailInput = await page.waitForSelector("input[type='email']", { timeout: 10000 }).catch(() => null);
 
-  // Click the login submit button
-  await page.click("button::-p-text('Continue with email')");
+  if (emailInput) {
+    console.log("Enter your email:", email);
+    await emailInput.type(email);
+    await page.keyboard.press("Enter");
 
-  await page.waitForNavigation();
+    // Sometimes there is a "Continue with email" button
+    try {
+      const continueButton = await page.waitForSelector("button::-p-text('Continue with email')", { timeout: 3000 });
+      if (continueButton) {
+        await continueButton.click();
+      }
+    } catch (e) { }
 
-  await page.waitForSelector('input[placeholder="Enter Code"]');
+    console.log("Waiting for you to enter the email code...");
+  } else {
+    console.log("Could not find email input, assuming already logged in or manual intervention needed.");
+  }
 
-  console.log(
-    "Check your email and enter code in the window.\nWaiting for you to enter the email code and login to succeed..."
-  );
+  console.log("Waiting for login to succeed...");
 
-  await page.waitForNavigation();
-
-  // Wait for the main chat input to be ready
-  await page.waitForSelector("#ask-input", {
-    timeout: 120000,
-  });
-
-  console.log("Successfully logged in");
+  // Wait for a sign that we are logged in. The new threads UI usually has "Ask anything..." or similar.
+  // We can wait for the presence of the user menu or the absence of the login modal, or just a known element of the main interface.
+  // The 'textarea' for asking questions is a good candidate.
+  await page.waitForSelector('textarea[placeholder*="Ask"]', { timeout: 0 }); // Wait indefinitely
+  console.log("Successfully logged in.");
 }

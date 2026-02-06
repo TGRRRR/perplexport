@@ -5,35 +5,54 @@ import {
   VideoModeBlock,
 } from "./types/conversation";
 
+export interface RenderResult {
+  markdown: string;
+  suggestedFilename: string;
+}
+
 export default function renderConversation(
   conversation: ConversationResponse
-): string {
+): RenderResult {
   const { entries } = conversation;
 
   if (entries.length === 0) {
-    return "";
+    return { markdown: "", suggestedFilename: "untitled" };
   }
 
-  let items = [
-    `---\nPerplexity URL: https://www.perplexity.ai/search/${
-      conversation.entries[0].thread_url_slug
-    }\nLast updated: ${
-      conversation.entries[entries.length - 1].updated_datetime
-    }\n---`,
-  ];
+  const firstEntry = entries[0];
+
+  // Get filename from thread_title
+  let suggestedFilename = firstEntry.thread_title || "untitled";
+  suggestedFilename = sanitizeFilename(suggestedFilename);
+
+  // Build space property from collection_info
+  let spaceValue = "";
+  if (firstEntry.collection_info?.title) {
+    const emoji = firstEntry.collection_info.emoji || "";
+    const title = firstEntry.collection_info.title;
+    spaceValue = emoji ? `${emojiFromCodepoint(emoji)} ${title}` : title;
+  }
+
+  // Build YAML frontmatter
+  let frontmatter = `---
+URL: https://www.perplexity.ai/search/${firstEntry.thread_url_slug}
+Last updated: ${entries[entries.length - 1].updated_datetime}`;
+
+  if (spaceValue) {
+    frontmatter += `\nSpace: ${spaceValue}`;
+  }
+  frontmatter += "\n---";
+
+  let items = [frontmatter];
 
   entries.forEach((entry, entryIndex) => {
-    if (entryIndex > 0) {
-      items.push("* * *");
-    }
+    // User prompt
+    items.push("# Me");
+    items.push(entry.query_str);
+    items.push("---");
 
-    const queryLines = entry.query_str.split("\n");
-
-    // important to get proper folding
-    items.push(`# ${queryLines[0]}`);
-
-    // convenient to read in a callout
-    items.push(`>[!important] ${entry.query_str.split("\n").join("\n> ")}`);
+    // Perplexity response
+    items.push("# Perplexity");
 
     const answerBlock = entry.blocks.find(
       (block) => block.intended_usage === "ask_text"
@@ -60,23 +79,54 @@ export default function renderConversation(
     }
 
     if (answerBlock) {
-      items.push(cleanupAnswer(answerBlock.answer, entryIndex));
+      let cleanedAnswer = cleanupAnswer(answerBlock.answer, entryIndex);
+      cleanedAnswer = bumpHeaders(cleanedAnswer);
+      items.push(cleanedAnswer);
     }
 
     if (sourcesBlock) {
       items.push(renderSources(sourcesBlock, entryIndex));
     }
+
+    // Separator between exchanges (except after last one)
+    if (entryIndex < entries.length - 1) {
+      items.push("---");
+    }
   });
 
-  return items.join("\n\n");
+  return {
+    markdown: items.join("\n\n"),
+    suggestedFilename
+  };
+}
+
+function emojiFromCodepoint(codepoint: string): string {
+  try {
+    return String.fromCodePoint(parseInt(codepoint, 16));
+  } catch {
+    return "";
+  }
+}
+
+function bumpHeaders(text: string): string {
+  return text.replace(/^(#{1,5}) /gm, (match, hashes) => {
+    return '#' + hashes + ' ';
+  });
+}
+
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 100);
 }
 
 function cleanupAnswer(answer: string, entryIndex: number): string {
   return (
     answer
-      // every header in the answer has a weird pplx: link, i think for follow-ups
       .replace(/\[(.*?)\]\(pplx:\/\/.*?\)/g, "$1")
-      // replace internal numbered refs
       .replace(/\[(\d+)\]/g, (_, num) => ` [[#^${entryIndex + 1}-${num}]] `)
   );
 }
@@ -85,9 +135,8 @@ function renderSources(sources: SourcesModeBlock, entryIndex: number): string {
   let sourcesText = `## ${sources.rows.length} Sources\n\n`;
   sources.rows.forEach((row) => {
     if (row.web_result.url.startsWith("http")) {
-      sourcesText += `- [${row.web_result.name}](${
-        row.web_result.url
-      }) ${hostLabel(row.web_result.url)}`;
+      sourcesText += `- [${row.web_result.name}](${row.web_result.url
+        }) ${hostLabel(row.web_result.url)}`;
     } else {
       sourcesText += `- ${row.web_result.name} (${row.web_result.url})`;
     }
@@ -108,9 +157,8 @@ function renderImages(images: ImageModeBlock): string {
   const imagesLine = images.media_items
     .map((item) => {
       const scale = 100 / item.image_height;
-      return `[![${item.name}|${(item.image_width * scale).toFixed(0)}x100](${
-        item.image
-      })](${item.url})`;
+      return `[![${item.name}|${(item.image_width * scale).toFixed(0)}x100](${item.image
+        })](${item.url})`;
     })
     .join(" ");
 

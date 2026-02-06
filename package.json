@@ -11,7 +11,8 @@
     "start": "ts-node src/index.ts",
     "dev": "ts-node-dev --respawn src/index.ts",
     "prepublishOnly": "npm run build",
-    "postinstall": "chmod +x dist/cli.js"
+    "postinstall": "echo 'Skipping chmod on Windows'",
+    "package": "pkg ."
   },
   "keywords": [
     "perplexity",
@@ -26,24 +27,24 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^11.0.0",
-    "puppeteer": "^24.9.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-core": "^21.1.1",
+    "turndown": "^7.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "pkg": "^5.8.1"
   },
   "engines": {
     "node": ">=16.0.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/leonid-shevtsov/perplexport.git"
-  },
-  "bugs": {
-    "url": "https://github.com/leonid-shevtsov/perplexport/issues"
-  },
-  "homepage": "https://github.com/leonid-shevtsov/perplexport#readme"
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": "node_modules/**/*",
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  }
 }

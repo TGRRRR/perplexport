@@ -45,6 +45,12 @@ export interface ConversationEntry {
   classifier_results: ClassifierResults;
   search_implementation_mode: string;
   should_index: boolean;
+  collection_info?: {
+    title?: string;
+    emoji?: string;
+    slug?: string;
+    uuid?: string;
+  };
 }
 
 // types seen so far; we don't need to describe all.
@@ -62,29 +68,29 @@ export interface ConversationEntry {
 
 export type Block =
   | {
-      intended_usage: "plan";
-      plan_block: PlanBlock;
-    }
+    intended_usage: "plan";
+    plan_block: PlanBlock;
+  }
   | {
-      intended_usage: "ask_text";
-      markdown_block: MarkdownBlock;
-    }
+    intended_usage: "ask_text";
+    markdown_block: MarkdownBlock;
+  }
   | {
-      intended_usage: "sources_answer_mode";
-      sources_mode_block: SourcesModeBlock;
-    }
+    intended_usage: "sources_answer_mode";
+    sources_mode_block: SourcesModeBlock;
+  }
   | {
-      intended_usage: "media_items";
-      media_block: MediaBlock;
-    }
+    intended_usage: "media_items";
+    media_block: MediaBlock;
+  }
   | {
-      intended_usage: "image_answer_mode";
-      image_mode_block: ImageModeBlock;
-    }
+    intended_usage: "image_answer_mode";
+    image_mode_block: ImageModeBlock;
+  }
   | {
-      intended_usage: "video_answer_mode";
-      video_mode_block: VideoModeBlock;
-    };
+    intended_usage: "video_answer_mode";
+    video_mode_block: VideoModeBlock;
+  };
 
 export interface PlanBlock {
   progress: string;
